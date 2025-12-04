@@ -1,489 +1,265 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  onAuthStateChanged,
-  signInWithCustomToken
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  query, 
-  orderBy, 
-  serverTimestamp 
-} from 'firebase/firestore';
-import { 
-  Box, 
-  User, 
-  LogOut, 
-  CheckCircle, 
-  AlertCircle, 
-  History, 
-  FileSpreadsheet,
-  Settings,
-  Save,
-  Truck
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Entregas - Auditor</title>
+    
+    <!-- 1. Estilos: Tailwind CSS (Diseño) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. React y ReactDOM (Motor de la app) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- 3. Babel (Para entender el código moderno en el navegador) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-// --- FIREBASE SETUP ---
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    <!-- 4. Iconos (FontAwesome para reemplazar Lucide) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [view, setView] = useState('login'); // 'login', 'dashboard', 'settings'
-  const [loading, setLoading] = useState(true);
+    <!-- 5. Firebase (Base de datos - Versión Compat para HTML simple) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans">
+    <div id="root"></div>
 
-  // Auth Initialization
-  useEffect(() => {
-    const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
+    <script type="text/babel">
+        // --- TU CONFIGURACIÓN DE FIREBASE AQUÍ ---
+        // 1. Ve a console.firebase.google.com
+        // 2. Crea un proyecto > Agrega App Web > Copia las claves
+        // 3. Reemplaza los valores de abajo:
+        const firebaseConfig = {
+            apiKey: "PEGA_TU_API_KEY_AQUI",
+            authDomain: "TU_PROYECTO.firebaseapp.com",
+            projectId: "TU_PROYECTO_ID",
+            storageBucket: "TU_PROYECTO.appspot.com",
+            messagingSenderId: "NUMEROS",
+            appId: "TU_APP_ID"
+        };
 
-  if (loading) return <div className="h-screen w-full flex items-center justify-center bg-gray-100 text-gray-500">Cargando sistema...</div>;
+        // Inicializar Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {view === 'login' && <LoginScreen onLogin={() => setView('dashboard')} />}
-      {view === 'dashboard' && <Dashboard user={user} onLogout={() => setView('login')} onSettings={() => setView('settings')} />}
-      {view === 'settings' && <SettingsScreen onBack={() => setView('dashboard')} />}
-    </div>
-  );
-}
+        // --- COMPONENTES DE LA APP ---
 
-// --- LOGIN COMPONENT ---
-function LoginScreen({ onLogin }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+        function App() {
+            const [user, setUser] = React.useState(null);
+            const [view, setView] = React.useState('login'); 
+            const [loading, setLoading] = React.useState(true);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    // Simulación de credenciales para el Auditor
-    // En un caso real, esto se validaría contra Firebase Auth o una base de datos de usuarios
-    if (username.toLowerCase() === 'auditor' && password === '1234') {
-      onLogin();
-    } else {
-      setError('Usuario o contraseña incorrectos. Intente: auditor / 1234');
-    }
-  };
+            React.useEffect(() => {
+                const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+                    setUser(currentUser);
+                    setLoading(false);
+                });
+                // Iniciar sesión anónima automáticamente si no hay config de token
+                if (!user) {
+                     auth.signInAnonymously().catch(e => console.error(e));
+                }
+                return () => unsubscribe();
+            }, []);
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-blue-900 to-slate-800">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden">
-        <div className="bg-blue-600 p-6 text-center">
-          <Truck className="w-12 h-12 text-white mx-auto mb-2" />
-          <h1 className="text-2xl font-bold text-white">Control de Entregas</h1>
-          <p className="text-blue-100 text-sm">Acceso de Auditores</p>
-        </div>
-        
-        <form onSubmit={handleLogin} className="p-8 space-y-6">
-          {error && (
-            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center">
-              <AlertCircle className="w-4 h-4 mr-2" />
-              {error}
-            </div>
-          )}
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-            <div className="relative">
-              <User className="absolute left-3 top-3 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                placeholder="Ej. auditor"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
-          </div>
+            if (loading) return <div className="h-screen w-full flex items-center justify-center text-gray-500">Cargando...</div>;
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-            <div className="relative">
-              <div className="absolute left-3 top-3 text-gray-400 w-5 h-5">🔒</div>
-              <input
-                type="password"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                placeholder="••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md hover:shadow-lg transition transform active:scale-95"
-          >
-            Ingresar
-          </button>
-        </form>
-        <div className="bg-gray-50 p-4 text-center text-xs text-gray-500 border-t border-gray-100">
-          Credenciales Demo: auditor / 1234
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- DASHBOARD COMPONENT ---
-function Dashboard({ user, onLogout, onSettings }) {
-  const [pickerId, setPickerId] = useState('');
-  const [deliveryId, setDeliveryId] = useState('');
-  const [recentScans, setRecentScans] = useState([]);
-  const [isPickerLocked, setIsPickerLocked] = useState(false);
-  const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
-  const [scriptUrl, setScriptUrl] = useState(localStorage.getItem('googleScriptUrl') || '');
-
-  const deliveryInputRef = useRef(null);
-
-  // Listen for real-time updates from Firestore
-  useEffect(() => {
-    if (!user) return;
-
-    // Use RULE 1 for public/shared data or simulate a specific auditor's log
-    // We'll use a public collection so multiple scanners can see logs if needed, 
-    // or simulate segregation by 'auditorId'.
-    const q = query(
-      collection(db, 'artifacts', appId, 'public', 'data', 'entregas'),
-      // orderBy('timestamp', 'desc') // RULE 2: No complex queries (orderBy + limit might fail without index). We sort in JS.
-    );
-
-    const unsubscribe = onSnapshot(q, 
-      (snapshot) => {
-        const data = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          // Handle timestamp conversion safely
-          timestamp: doc.data().timestamp?.toDate ? doc.data().timestamp.toDate() : new Date()
-        }));
-        
-        // Sort in memory (descending)
-        data.sort((a, b) => b.timestamp - a.timestamp);
-        setRecentScans(data.slice(0, 50)); // Keep last 50 locally
-      },
-      (error) => console.error("Error fetching logs:", error)
-    );
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // Handle Picker Input Change (Max 6 digits)
-  const handlePickerChange = (e) => {
-    const val = e.target.value.replace(/\D/g, ''); // Solo números
-    if (val.length <= 6) setPickerId(val);
-  };
-
-  // Handle Delivery Input Change (Max 10 digits)
-  const handleDeliveryChange = (e) => {
-    const val = e.target.value.replace(/\D/g, ''); // Solo números
-    if (val.length <= 10) setDeliveryId(val);
-  };
-
-  // Lock Picker ID to scan faster
-  const togglePickerLock = () => {
-    if (!pickerId && !isPickerLocked) {
-      setStatusMsg({ type: 'error', text: 'Ingrese un Picker ID antes de bloquear.' });
-      return;
-    }
-    setIsPickerLocked(!isPickerLocked);
-    if (!isPickerLocked) {
-      // Focus delivery input automatically
-      setTimeout(() => deliveryInputRef.current?.focus(), 100);
-    }
-  };
-
-  // Submit Logic
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setStatusMsg({ type: '', text: '' });
-
-    if (!pickerId) {
-      setStatusMsg({ type: 'error', text: 'Falta el número de Picker.' });
-      return;
-    }
-    if (!deliveryId) {
-      setStatusMsg({ type: 'error', text: 'Escanee o ingrese la entrega.' });
-      return;
-    }
-
-    const newEntry = {
-      pickerId,
-      deliveryId,
-      auditor: 'Auditor_1', // In a real app, from user auth
-      timestamp: serverTimestamp(),
-      dateString: new Date().toLocaleDateString(),
-      timeString: new Date().toLocaleTimeString()
-    };
-
-    try {
-      // 1. Save to Firestore (Reliable, Persistent)
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'entregas'), newEntry);
-      
-      // 2. Try sending to Google Sheets (if configured)
-      if (scriptUrl) {
-        // We use no-cors mode because Google Scripts don't support CORS headers easily for simple POSTs
-        // This means we won't know if it truly succeeded, but it usually works for "fire and forget"
-        fetch(scriptUrl, {
-          method: 'POST',
-          mode: 'no-cors', 
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            picker: pickerId,
-            entrega: deliveryId,
-            auditor: 'Auditor_1',
-            fecha: new Date().toISOString()
-          })
-        }).catch(err => console.error("Error enviando a Sheets:", err));
-      }
-
-      setStatusMsg({ type: 'success', text: `Entrega ${deliveryId} registrada.` });
-      setDeliveryId(''); // Clear delivery field only
-      // Keep focus on delivery input for rapid scanning
-      deliveryInputRef.current?.focus();
-
-    } catch (err) {
-      console.error(err);
-      setStatusMsg({ type: 'error', text: 'Error al guardar.' });
-    }
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto p-4 pb-20">
-      {/* Header */}
-      <header className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex items-center space-x-3">
-          <div className="bg-blue-100 p-2 rounded-lg">
-            <User className="w-6 h-6 text-blue-700" />
-          </div>
-          <div>
-            <h2 className="font-bold text-slate-800">Auditor</h2>
-            <p className="text-xs text-slate-500">Sesión Activa</p>
-          </div>
-        </div>
-        <div className="flex space-x-2">
-           <button 
-            onClick={onSettings}
-            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"
-            title="Configurar Google Sheets"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-          <button 
-            onClick={onLogout}
-            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition"
-            title="Cerrar Sesión"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
-        </div>
-      </header>
-
-      {/* Main Form */}
-      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden mb-6">
-        <div className="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
-          <h3 className="font-bold text-slate-700 flex items-center">
-            <Box className="w-5 h-5 mr-2 text-blue-500" />
-            Registro de Entrega
-          </h3>
-          {statusMsg.text && (
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusMsg.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {statusMsg.text}
-            </span>
-          )}
-        </div>
-        
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          
-          {/* Picker ID Section */}
-          <div className={`transition-all duration-300 ${isPickerLocked ? 'opacity-75 grayscale' : 'opacity-100'}`}>
-            <label className="block text-sm font-bold text-slate-600 mb-1 uppercase tracking-wide">
-              Número de Picker (Max 6)
-            </label>
-            <div className="flex space-x-2">
-              <input
-                type="text" // Using text to handle maxLength logic better manually
-                inputMode="numeric"
-                value={pickerId}
-                onChange={handlePickerChange}
-                disabled={isPickerLocked}
-                placeholder="123456"
-                className="flex-1 bg-slate-50 border-2 border-slate-200 text-slate-800 text-xl font-mono p-3 rounded-lg focus:border-blue-500 focus:ring-0 outline-none disabled:bg-slate-100"
-              />
-              <button
-                type="button"
-                onClick={togglePickerLock}
-                className={`px-4 rounded-lg font-medium transition flex items-center justify-center ${
-                  isPickerLocked 
-                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' 
-                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200'
-                }`}
-              >
-                {isPickerLocked ? 'Desbloquear' : 'Bloquear'}
-              </button>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">Bloquea este campo para escanear múltiples entregas del mismo picker.</p>
-          </div>
-
-          {/* Divider */}
-          <div className="h-px bg-slate-100 w-full"></div>
-
-          {/* Delivery ID Section */}
-          <div>
-            <label className="block text-sm font-bold text-slate-600 mb-1 uppercase tracking-wide">
-              Número de Entrega (Max 10)
-            </label>
-            <div className="relative">
-              <input
-                ref={deliveryInputRef}
-                type="text"
-                inputMode="numeric"
-                value={deliveryId}
-                onChange={handleDeliveryChange}
-                placeholder="Escanee aquí..."
-                autoFocus
-                className="w-full bg-white border-2 border-blue-500 text-slate-900 text-2xl font-mono p-4 rounded-lg shadow-sm focus:ring-4 focus:ring-blue-100 outline-none transition"
-              />
-              <div className="absolute right-4 top-4 text-slate-300">
-                <Truck className="w-8 h-8 opacity-20" />
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg py-4 rounded-xl shadow-lg hover:shadow-xl transition transform active:scale-98 flex items-center justify-center"
-          >
-            <CheckCircle className="w-6 h-6 mr-2" />
-            Registrar Entrega
-          </button>
-        </form>
-      </div>
-
-      {/* Recent Scans List */}
-      <div className="space-y-3">
-        <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center">
-          <History className="w-4 h-4 mr-2" />
-          Registros Recientes
-        </h4>
-        
-        {recentScans.length === 0 ? (
-          <div className="text-center py-8 text-slate-400 bg-white rounded-lg border border-slate-200 border-dashed">
-            No hay registros hoy.
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 divide-y divide-slate-100 max-h-96 overflow-y-auto">
-            {recentScans.map((scan) => (
-              <div key={scan.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition">
-                <div>
-                  <div className="font-mono font-bold text-slate-800 text-lg">#{scan.deliveryId}</div>
-                  <div className="text-xs text-slate-500 flex items-center mt-1">
-                    <User className="w-3 h-3 mr-1" /> Picker: {scan.pickerId}
-                  </div>
+            return (
+                <div className="min-h-screen">
+                    {view === 'login' && <LoginScreen onLogin={() => setView('dashboard')} />}
+                    {view === 'dashboard' && <Dashboard user={user} onLogout={() => setView('login')} onSettings={() => setView('settings')} />}
+                    {view === 'settings' && <SettingsScreen onBack={() => setView('dashboard')} />}
                 </div>
-                <div className="text-right">
-                  <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full inline-block">
-                    {scan.timeString || 'Recently'}
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-1">
-                    {scan.dateString}
-                  </div>
+            );
+        }
+
+        function LoginScreen({ onLogin }) {
+            const [username, setUsername] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [error, setError] = React.useState('');
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (username.toLowerCase() === 'auditor' && password === '1234') {
+                    onLogin();
+                } else {
+                    setError('Usuario o contraseña incorrectos.');
+                }
+            };
+
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-blue-900 to-slate-800">
+                    <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden">
+                        <div className="bg-blue-600 p-6 text-center">
+                            <i className="fa-solid fa-truck text-4xl text-white mb-2"></i>
+                            <h1 className="text-2xl font-bold text-white">Control de Entregas</h1>
+                        </div>
+                        <form onSubmit={handleLogin} className="p-8 space-y-6">
+                            {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded">{error}</div>}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+                                <input type="text" className="w-full p-2 border rounded" placeholder="auditor" value={username} onChange={(e) => setUsername(e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                                <input type="password" className="w-full p-2 border rounded" placeholder="1234" value={password} onChange={(e) => setPassword(e.target.value)} />
+                            </div>
+                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded">Ingresar</button>
+                        </form>
+                    </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+            );
+        }
 
-// --- SETTINGS COMPONENT (For Google Sheets) ---
-function SettingsScreen({ onBack }) {
-  const [url, setUrl] = useState(localStorage.getItem('googleScriptUrl') || '');
-  const [showHelp, setShowHelp] = useState(false);
+        function Dashboard({ user, onLogout, onSettings }) {
+            const [pickerId, setPickerId] = React.useState('');
+            const [deliveryId, setDeliveryId] = React.useState('');
+            const [recentScans, setRecentScans] = React.useState([]);
+            const [isPickerLocked, setIsPickerLocked] = React.useState(false);
+            const [statusMsg, setStatusMsg] = React.useState({ type: '', text: '' });
+            const [scriptUrl, setScriptUrl] = React.useState(localStorage.getItem('googleScriptUrl') || '');
+            const deliveryInputRef = React.useRef(null);
 
-  const handleSave = () => {
-    localStorage.setItem('googleScriptUrl', url);
-    onBack();
-  };
+            React.useEffect(() => {
+                if (!user) return;
+                // Escuchar cambios en Firestore
+                const unsubscribe = db.collection('entregas')
+                    .orderBy('timestamp', 'desc')
+                    .limit(50)
+                    .onSnapshot(snapshot => {
+                        const data = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data(),
+                            timestamp: doc.data().timestamp ? doc.data().timestamp.toDate() : new Date()
+                        }));
+                        setRecentScans(data);
+                    });
+                return () => unsubscribe();
+            }, [user]);
 
-  return (
-    <div className="max-w-2xl mx-auto p-4">
-      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-        <div className="bg-green-600 p-4 flex items-center text-white">
-          <button onClick={onBack} className="mr-4 hover:bg-green-700 p-1 rounded">
-            ← Volver
-          </button>
-          <h2 className="font-bold text-lg flex items-center">
-            <FileSpreadsheet className="w-5 h-5 mr-2" />
-            Conexión Google Sheets
-          </h2>
-        </div>
-        
-        <div className="p-6 space-y-6">
-          <p className="text-sm text-gray-600">
-            Para guardar datos en tu hoja privada, necesitas un <strong>Google Apps Script</strong> desplegado como Web App.
-          </p>
+            const handlePickerChange = (e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                if (val.length <= 6) setPickerId(val);
+            };
 
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Google Apps Script Web App URL</label>
-            <input 
-              type="text" 
-              className="w-full border p-3 rounded bg-gray-50 font-mono text-xs"
-              placeholder="https://script.google.com/macros/s/..../exec"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-            />
-          </div>
+            const togglePickerLock = () => {
+                if (!pickerId && !isPickerLocked) return;
+                setIsPickerLocked(!isPickerLocked);
+                if (!isPickerLocked) setTimeout(() => deliveryInputRef.current?.focus(), 100);
+            };
 
-          <button 
-            onClick={() => setShowHelp(!showHelp)}
-            className="text-blue-600 text-sm hover:underline"
-          >
-            {showHelp ? 'Ocultar instrucciones' : '¿Cómo obtengo esta URL?'}
-          </button>
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!pickerId || !deliveryId) return;
 
-          {showHelp && (
-            <div className="bg-slate-50 p-4 rounded-lg text-xs text-slate-700 space-y-2 border border-slate-200">
-              <p>1. Ve a tu Google Sheet.</p>
-              <p>2. Extensiones {'>'} Apps Script.</p>
-              <p>3. Pega el código que te proporcionaré en el chat.</p>
-              <p>4. Dale a "Implementar" {'>'} "Nueva implementación".</p>
-              <p>5. Tipo: "Aplicación web".</p>
-              <p>6. Acceso: "Cualquier usuario" (Importante).</p>
-              <p>7. Copia la URL generada y pégala arriba.</p>
-            </div>
-          )}
+                const newEntry = {
+                    pickerId,
+                    deliveryId,
+                    auditor: 'Auditor_1',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    dateString: new Date().toLocaleDateString(),
+                    timeString: new Date().toLocaleTimeString()
+                };
 
-          <button 
-            onClick={handleSave}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            Guardar Configuración
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+                try {
+                    await db.collection('entregas').add(newEntry);
+                    
+                    if (scriptUrl) {
+                        fetch(scriptUrl, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ picker: pickerId, entrega: deliveryId, auditor: 'Auditor_1' })
+                        }).catch(console.error);
+                    }
+                    setStatusMsg({ type: 'success', text: `Entrega ${deliveryId} OK` });
+                    setDeliveryId('');
+                    deliveryInputRef.current?.focus();
+                } catch (err) {
+                    console.error(err);
+                    setStatusMsg({ type: 'error', text: 'Error al guardar' });
+                }
+            };
+
+            return (
+                <div className="max-w-2xl mx-auto p-4">
+                    <header className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow border">
+                        <div className="flex items-center space-x-2">
+                            <i className="fa-solid fa-user-circle text-2xl text-blue-600"></i>
+                            <span className="font-bold text-slate-800">Auditor</span>
+                        </div>
+                        <div>
+                            <button onClick={onSettings} className="p-2 text-gray-400 hover:text-blue-600"><i className="fa-solid fa-cog"></i></button>
+                            <button onClick={onLogout} className="p-2 text-gray-400 hover:text-red-600"><i className="fa-solid fa-sign-out-alt"></i></button>
+                        </div>
+                    </header>
+
+                    <div className="bg-white rounded-xl shadow border mb-6">
+                         <div className="bg-slate-50 border-b p-4 flex justify-between">
+                            <h3 className="font-bold text-slate-700"><i className="fa-solid fa-box mr-2"></i>Registro</h3>
+                            {statusMsg.text && <span className={`text-xs px-2 py-1 rounded-full ${statusMsg.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{statusMsg.text}</span>}
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-600 mb-1">PICKER ID</label>
+                                <div className="flex space-x-2">
+                                    <input type="text" inputMode="numeric" value={pickerId} onChange={handlePickerChange} disabled={isPickerLocked} className="flex-1 bg-slate-50 border-2 p-3 rounded text-xl disabled:bg-gray-200" placeholder="123456" />
+                                    <button type="button" onClick={togglePickerLock} className={`px-4 rounded font-bold ${isPickerLocked ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        {isPickerLocked ? <i className="fa-solid fa-lock"></i> : <i className="fa-solid fa-lock-open"></i>}
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-600 mb-1">ENTREGA ID</label>
+                                <input ref={deliveryInputRef} type="text" inputMode="numeric" value={deliveryId} onChange={(e) => setDeliveryId(e.target.value.replace(/\D/g, '').substring(0, 10))} className="w-full border-2 border-blue-500 p-4 rounded text-2xl" placeholder="Escanear..." autoFocus />
+                            </div>
+                            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-4 rounded shadow hover:bg-blue-700">REGISTRAR</button>
+                        </form>
+                    </div>
+
+                    <div className="space-y-3">
+                         <h4 className="text-sm font-bold text-slate-500"><i className="fa-solid fa-history mr-2"></i>Historial Reciente</h4>
+                         <div className="bg-white rounded shadow border max-h-96 overflow-y-auto divide-y">
+                            {recentScans.map(scan => (
+                                <div key={scan.id} className="p-4 flex justify-between">
+                                    <div>
+                                        <div className="font-bold text-lg">#{scan.deliveryId}</div>
+                                        <div className="text-xs text-gray-500">Picker: {scan.pickerId}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">{scan.timeString}</div>
+                                    </div>
+                                </div>
+                            ))}
+                         </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function SettingsScreen({ onBack }) {
+            const [url, setUrl] = React.useState(localStorage.getItem('googleScriptUrl') || '');
+            const save = () => { localStorage.setItem('googleScriptUrl', url); onBack(); };
+            return (
+                <div className="max-w-2xl mx-auto p-4">
+                    <div className="bg-white rounded shadow border p-6 space-y-4">
+                        <h2 className="font-bold text-lg">Configurar Google Sheets</h2>
+                        <input type="text" className="w-full border p-2 rounded" placeholder="URL del Web App Script" value={url} onChange={e => setUrl(e.target.value)} />
+                        <div className="flex space-x-2">
+                             <button onClick={onBack} className="flex-1 bg-gray-200 py-2 rounded">Cancelar</button>
+                             <button onClick={save} className="flex-1 bg-green-600 text-white py-2 rounded">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
