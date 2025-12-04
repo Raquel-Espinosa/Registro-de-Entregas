@@ -30,14 +30,14 @@
         // --- TU CONFIGURACIÓN DE FIREBASE AQUÍ ---
         // 1. Ve a console.firebase.google.com
         // 2. Crea un proyecto > Agrega App Web > Copia las claves
-        // 3. Reemplaza los valores de abajo:
+        // 3. Reemplaza los valores de abajo con TUS PROPIAS credenciales:
         const firebaseConfig = {
-            apiKey: "PEGA_TU_API_KEY_AQUI",
-            authDomain: "TU_PROYECTO.firebaseapp.com",
-            projectId: "TU_PROYECTO_ID",
-            storageBucket: "TU_PROYECTO.appspot.com",
-            messagingSenderId: "NUMEROS",
-            appId: "TU_APP_ID"
+            apiKey: "AIzaSyCwdj9y03bp5cFfy587Dr2nFDMe7gZCYrw",
+            authDomain: "control-entregas-app.firebaseapp.com",
+            projectId: "control-entregas-app",
+            storageBucket: "control-entregas-app.firebasestorage.app",
+            messagingSenderId: "141381181216",
+            appId: "1:141381181216:web:c81e66c926523a1fc50145"
         };
 
         // Inicializar Firebase
@@ -53,20 +53,58 @@
             const [user, setUser] = React.useState(null);
             const [view, setView] = React.useState('login'); 
             const [loading, setLoading] = React.useState(true);
+            const [configError, setConfigError] = React.useState(null);
 
             React.useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged((currentUser) => {
                     setUser(currentUser);
                     setLoading(false);
                 });
-                // Iniciar sesión anónima automáticamente si no hay config de token
+                
+                // Intentar iniciar sesión anónima
                 if (!user) {
-                     auth.signInAnonymously().catch(e => console.error(e));
+                     auth.signInAnonymously().catch(e => {
+                         console.error("Error de Auth:", e);
+                         let msg = "Error desconocido de autenticación.";
+                         
+                         if (e.code === 'auth/configuration-not-found') {
+                             msg = "Falta activar 'Authentication' en Firebase Console.";
+                         } else if (e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed') {
+                             msg = "El método de inicio de sesión 'Anónimo' no está habilitado en Firebase Console.";
+                         } else {
+                             msg = e.message;
+                         }
+                         setConfigError(msg);
+                         setLoading(false);
+                     });
                 }
                 return () => unsubscribe();
             }, []);
 
-            if (loading) return <div className="h-screen w-full flex items-center justify-center text-gray-500">Cargando...</div>;
+            if (configError) {
+                return (
+                    <div className="h-screen w-full flex flex-col items-center justify-center p-6 bg-red-50 text-center">
+                        <div className="bg-white p-8 rounded-xl shadow-xl border border-red-200 max-w-md">
+                            <i className="fa-solid fa-triangle-exclamation text-4xl text-red-500 mb-4"></i>
+                            <h2 className="text-xl font-bold text-red-700 mb-2">Error de Configuración</h2>
+                            <p className="text-gray-700 mb-4">{configError}</p>
+                            <div className="text-left text-sm bg-gray-100 p-4 rounded text-gray-600">
+                                <strong>Solución:</strong>
+                                <ol className="list-decimal ml-4 mt-2 space-y-1">
+                                    <li>Ve a <a href="https://console.firebase.google.com" target="_blank" className="text-blue-600 underline">Firebase Console</a>.</li>
+                                    <li>Entra a tu proyecto.</li>
+                                    <li>En el menú izquierdo, busca <strong>Compilación (Build)</strong> > <strong>Authentication</strong>.</li>
+                                    <li>Dale a "Comenzar".</li>
+                                    <li>En la pestaña "Sign-in method", activa <strong>Anónimo</strong>.</li>
+                                </ol>
+                            </div>
+                            <button onClick={() => window.location.reload()} className="mt-6 w-full bg-red-600 text-white py-2 rounded hover:bg-red-700">Recargar Página</button>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (loading) return <div className="h-screen w-full flex items-center justify-center text-gray-500"><i className="fa-solid fa-spinner fa-spin mr-2"></i> Cargando sistema...</div>;
 
             return (
                 <div className="min-h-screen">
@@ -109,6 +147,7 @@
                                 <input type="password" className="w-full p-2 border rounded" placeholder="1234" value={password} onChange={(e) => setPassword(e.target.value)} />
                             </div>
                             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded">Ingresar</button>
+                            <div className="text-center text-xs text-gray-400">Demo: auditor / 1234</div>
                         </form>
                     </div>
                 </div>
@@ -127,6 +166,7 @@
             React.useEffect(() => {
                 if (!user) return;
                 // Escuchar cambios en Firestore
+                // Nota: Asegúrate de haber creado la base de datos en modo prueba
                 const unsubscribe = db.collection('entregas')
                     .orderBy('timestamp', 'desc')
                     .limit(50)
@@ -137,6 +177,11 @@
                             timestamp: doc.data().timestamp ? doc.data().timestamp.toDate() : new Date()
                         }));
                         setRecentScans(data);
+                    }, error => {
+                        console.error("Error obteniendo datos:", error);
+                        if (error.code === 'failed-precondition') {
+                             setStatusMsg({ type: 'error', text: 'Falta índice en Firebase. Ordenando localmente...' });
+                        }
                     });
                 return () => unsubscribe();
             }, [user]);
@@ -181,7 +226,7 @@
                     deliveryInputRef.current?.focus();
                 } catch (err) {
                     console.error(err);
-                    setStatusMsg({ type: 'error', text: 'Error al guardar' });
+                    setStatusMsg({ type: 'error', text: 'Error al guardar. ¿Base de datos creada?' });
                 }
             };
 
