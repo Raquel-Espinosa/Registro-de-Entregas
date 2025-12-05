@@ -47,6 +47,18 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
+        // --- LISTA DE AUDITORES AUTORIZADOS ---
+        // Aquí puedes agregar, borrar o editar usuarios.
+        const AUDITORS_LIST = [
+            { user: 'auditor',  pass: '1234',   name: 'Auditor General' },
+            { user: '97615',    pass: 'Inicio.02',  name: 'Julio Hernandez' },
+            { user: '97743',    pass: 'Inicio.01', name: 'Jorge Miros' },
+            { user: '99270',    pass: 'Inicio.03', name: 'Lesli Sagnite' }
+            { user: '54668',    pass: 'Inicio.04', name: 'David Bautista' },
+            { user: '99103',    pass: 'Inicio.05', name: 'Luis Jimenez' }
+
+        ];
+
         // --- COMPONENTES DE LA APP ---
 
         function App() {
@@ -54,6 +66,7 @@
             const [view, setView] = React.useState('login'); 
             const [loading, setLoading] = React.useState(true);
             const [configError, setConfigError] = React.useState(null);
+            const [currentAuditorName, setCurrentAuditorName] = React.useState('');
 
             React.useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -80,6 +93,16 @@
                 }
                 return () => unsubscribe();
             }, []);
+
+            const handleAuditorLogin = (name) => {
+                setCurrentAuditorName(name);
+                setView('dashboard');
+            };
+
+            const handleLogout = () => {
+                setCurrentAuditorName('');
+                setView('login');
+            };
 
             if (configError) {
                 return (
@@ -108,8 +131,8 @@
 
             return (
                 <div className="min-h-screen">
-                    {view === 'login' && <LoginScreen onLogin={() => setView('dashboard')} />}
-                    {view === 'dashboard' && <Dashboard user={user} onLogout={() => setView('login')} onSettings={() => setView('settings')} />}
+                    {view === 'login' && <LoginScreen onLogin={handleAuditorLogin} />}
+                    {view === 'dashboard' && <Dashboard user={user} auditorName={currentAuditorName} onLogout={handleLogout} onSettings={() => setView('settings')} />}
                     {view === 'settings' && <SettingsScreen onBack={() => setView('dashboard')} />}
                 </div>
             );
@@ -122,8 +145,13 @@
 
             const handleLogin = (e) => {
                 e.preventDefault();
-                if (username.toLowerCase() === 'auditor' && password === '1234') {
-                    onLogin();
+                // Buscar usuario en la lista
+                const foundUser = AUDITORS_LIST.find(
+                    u => u.user.toLowerCase() === username.toLowerCase().trim() && u.pass === password.trim()
+                );
+
+                if (foundUser) {
+                    onLogin(foundUser.name);
                 } else {
                     setError('Usuario o contraseña incorrectos.');
                 }
@@ -140,21 +168,23 @@
                             {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded">{error}</div>}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-                                <input type="text" className="w-full p-2 border rounded" placeholder="auditor" value={username} onChange={(e) => setUsername(e.target.value)} />
+                                <input type="text" className="w-full p-2 border rounded" placeholder="ej. juan" value={username} onChange={(e) => setUsername(e.target.value)} />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                                <input type="password" className="w-full p-2 border rounded" placeholder="1234" value={password} onChange={(e) => setPassword(e.target.value)} />
+                                <input type="password" className="w-full p-2 border rounded" placeholder="****" value={password} onChange={(e) => setPassword(e.target.value)} />
                             </div>
                             <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded">Ingresar</button>
-                            <div className="text-center text-xs text-gray-400">Demo: auditor / 1234</div>
+                            <div className="text-center text-xs text-gray-400 mt-2">
+                                Usuarios activos: {AUDITORS_LIST.map(u => u.user).join(', ')}
+                            </div>
                         </form>
                     </div>
                 </div>
             );
         }
 
-        function Dashboard({ user, onLogout, onSettings }) {
+        function Dashboard({ user, auditorName, onLogout, onSettings }) {
             const [pickerId, setPickerId] = React.useState('');
             const [deliveryId, setDeliveryId] = React.useState('');
             const [recentScans, setRecentScans] = React.useState([]);
@@ -166,7 +196,6 @@
             React.useEffect(() => {
                 if (!user) return;
                 // Escuchar cambios en Firestore
-                // Nota: Asegúrate de haber creado la base de datos en modo prueba
                 const unsubscribe = db.collection('entregas')
                     .orderBy('timestamp', 'desc')
                     .limit(50)
@@ -201,10 +230,13 @@
                 e.preventDefault();
                 if (!pickerId || !deliveryId) return;
 
+                // Usamos el nombre real del auditor logueado
+                const currentAuditor = auditorName || 'Desconocido';
+
                 const newEntry = {
                     pickerId,
                     deliveryId,
-                    auditor: 'Auditor_1',
+                    auditor: currentAuditor,
                     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
                     dateString: new Date().toLocaleDateString(),
                     timeString: new Date().toLocaleTimeString()
@@ -218,7 +250,11 @@
                             method: 'POST',
                             mode: 'no-cors',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ picker: pickerId, entrega: deliveryId, auditor: 'Auditor_1' })
+                            body: JSON.stringify({ 
+                                picker: pickerId, 
+                                entrega: deliveryId, 
+                                auditor: currentAuditor 
+                            })
                         }).catch(console.error);
                     }
                     setStatusMsg({ type: 'success', text: `Entrega ${deliveryId} OK` });
@@ -235,11 +271,14 @@
                     <header className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow border">
                         <div className="flex items-center space-x-2">
                             <i className="fa-solid fa-user-circle text-2xl text-blue-600"></i>
-                            <span className="font-bold text-slate-800">Auditor</span>
+                            <div>
+                                <span className="font-bold text-slate-800 block leading-tight">{auditorName}</span>
+                                <span className="text-xs text-slate-500">Sesión Activa</span>
+                            </div>
                         </div>
                         <div>
-                            <button onClick={onSettings} className="p-2 text-gray-400 hover:text-blue-600"><i className="fa-solid fa-cog"></i></button>
-                            <button onClick={onLogout} className="p-2 text-gray-400 hover:text-red-600"><i className="fa-solid fa-sign-out-alt"></i></button>
+                            <button onClick={onSettings} className="p-2 text-gray-400 hover:text-blue-600" title="Configuración"><i className="fa-solid fa-cog"></i></button>
+                            <button onClick={onLogout} className="p-2 text-gray-400 hover:text-red-600" title="Cerrar Sesión"><i className="fa-solid fa-sign-out-alt"></i></button>
                         </div>
                     </header>
 
@@ -273,7 +312,7 @@
                                 <div key={scan.id} className="p-4 flex justify-between">
                                     <div>
                                         <div className="font-bold text-lg">#{scan.deliveryId}</div>
-                                        <div className="text-xs text-gray-500">Picker: {scan.pickerId}</div>
+                                        <div className="text-xs text-gray-500">Picker: {scan.pickerId} | <span className="text-blue-600">{scan.auditor}</span></div>
                                     </div>
                                     <div className="text-right">
                                         <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">{scan.timeString}</div>
